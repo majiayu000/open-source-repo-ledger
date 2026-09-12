@@ -20,6 +20,11 @@ class GitHubApiError(RuntimeError):
     pass
 
 
+def encode_path_segment(value: str) -> str:
+    """Percent-encode a single URL path segment so reserved characters cannot rewrite the path."""
+    return urllib.parse.quote(value, safe="")
+
+
 class GitHubClient:
     def __init__(self, token: str | None = None, api_root: str = API_ROOT) -> None:
         self.api_root = api_root.rstrip("/")
@@ -37,9 +42,10 @@ class GitHubClient:
 
     def iter_public_owner_repos(self, owner: str) -> Iterator[dict[str, Any]]:
         page = 1
+        encoded_owner = encode_path_segment(owner)
         while True:
             data = self._request_json(
-                f"/users/{owner}/repos",
+                f"/users/{encoded_owner}/repos",
                 {
                     "type": "owner",
                     "sort": "updated",
@@ -100,10 +106,10 @@ class GitHubClient:
         )
 
     def repo_has_readme(self, owner: str, repo: str) -> bool:
-        return self._request_json(f"/repos/{owner}/{repo}/readme", allow_not_found=True) is not None
+        return self._request_json(self._repo_path(owner, repo, "readme"), allow_not_found=True) is not None
 
     def latest_release(self, owner: str, repo: str) -> ReleaseInfo | None:
-        data = self._request_json(f"/repos/{owner}/{repo}/releases/latest", allow_not_found=True)
+        data = self._request_json(self._repo_path(owner, repo, "releases/latest"), allow_not_found=True)
         if data is None:
             return None
         return ReleaseInfo(
@@ -113,7 +119,7 @@ class GitHubClient:
 
     def repo_has_workflows(self, owner: str, repo: str) -> bool:
         data = self._request_json(
-            f"/repos/{owner}/{repo}/actions/workflows",
+            self._repo_path(owner, repo, "actions/workflows"),
             {"per_page": 1},
             allow_not_found=True,
         )
@@ -123,7 +129,7 @@ class GitHubClient:
 
     def recent_workflow_status(self, owner: str, repo: str) -> WorkflowRunInfo | None:
         data = self._request_json(
-            f"/repos/{owner}/{repo}/actions/runs",
+            self._repo_path(owner, repo, "actions/runs"),
             {"per_page": 1},
             allow_not_found=True,
         )
@@ -171,6 +177,9 @@ class GitHubClient:
         if encoded_query:
             url = f"{url}?{encoded_query}"
         return url
+
+    def _repo_path(self, owner: str, repo: str, suffix: str) -> str:
+        return f"/repos/{encode_path_segment(owner)}/{encode_path_segment(repo)}/{suffix}"
 
     def _headers(self) -> dict[str, str]:
         headers = {
