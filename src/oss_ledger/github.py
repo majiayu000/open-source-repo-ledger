@@ -119,7 +119,9 @@ class GitHubClient:
         )
         if data is None:
             return False
-        return int(data.get("total_count", 0)) > 0
+        if not isinstance(data, dict):
+            raise GitHubApiError("GitHub workflows payload must be an object.")
+        return expect_int(data, "total_count", default=0) > 0
 
     def recent_workflow_status(self, owner: str, repo: str) -> WorkflowRunInfo | None:
         data = self._request_json(
@@ -129,10 +131,16 @@ class GitHubClient:
         )
         if data is None:
             return None
+        if not isinstance(data, dict):
+            raise GitHubApiError("GitHub workflow runs payload must be an object.")
         runs = data.get("workflow_runs") or []
+        if not isinstance(runs, list):
+            raise GitHubApiError("GitHub payload has non-list field: workflow_runs")
         if not runs:
             return None
         run = runs[0]
+        if not isinstance(run, dict):
+            raise GitHubApiError("GitHub workflow run entry must be an object.")
         return WorkflowRunInfo(
             name=optional_str(run.get("name")),
             status=optional_str(run.get("status")),
@@ -199,6 +207,18 @@ def expect_str(payload: dict[str, Any], key: str) -> str:
     value = payload.get(key)
     if not isinstance(value, str) or not value:
         raise GitHubApiError(f"GitHub payload is missing string field: {key}")
+    return value
+
+
+def expect_int(payload: dict[str, Any], key: str, *, default: int | None = None) -> int:
+    if key not in payload:
+        if default is not None:
+            return default
+        raise GitHubApiError(f"GitHub payload is missing int field: {key}")
+    value = payload[key]
+    # bool is a subclass of int; reject it so true/false never become 1/0 silently.
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise GitHubApiError(f"GitHub payload has non-int field: {key}")
     return value
 
 

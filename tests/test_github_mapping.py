@@ -4,7 +4,7 @@ import os
 import unittest
 from unittest.mock import patch
 
-from oss_ledger.github import GitHubClient, license_spdx_id, optional_str
+from oss_ledger.github import GitHubApiError, GitHubClient, expect_int, license_spdx_id, optional_str
 from oss_ledger.model import ReleaseInfo, WorkflowRunInfo
 
 
@@ -70,6 +70,27 @@ class GitHubMappingTests(unittest.TestCase):
             client = GitHubClient(api_root="https://example.invalid")
 
         self.assertNotIn("Authorization", client._headers())
+
+    def test_expect_int_rejects_null_and_non_int(self) -> None:
+        self.assertEqual(expect_int({}, "total_count", default=0), 0)
+        self.assertEqual(expect_int({"total_count": 3}, "total_count", default=0), 3)
+        with self.assertRaises(GitHubApiError):
+            expect_int({"total_count": None}, "total_count", default=0)
+        with self.assertRaises(GitHubApiError):
+            expect_int({"total_count": "1"}, "total_count", default=0)
+
+    def test_repo_has_workflows_null_total_count_raises_github_api_error(self) -> None:
+        client = GitHubClient(token=None, api_root="https://example.invalid")
+        with patch.object(client, "_request_json", return_value={"total_count": None}):
+            with self.assertRaises(GitHubApiError) as ctx:
+                client.repo_has_workflows("owner", "repo")
+        self.assertIn("total_count", str(ctx.exception))
+        self.assertNotIsInstance(ctx.exception, TypeError)
+
+    def test_repo_has_workflows_missing_total_count_is_false(self) -> None:
+        client = GitHubClient(token=None, api_root="https://example.invalid")
+        with patch.object(client, "_request_json", return_value={}):
+            self.assertFalse(client.repo_has_workflows("owner", "repo"))
 
 
 if __name__ == "__main__":
