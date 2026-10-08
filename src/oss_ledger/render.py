@@ -13,7 +13,21 @@ def render_json(entries: Sequence[RepoLedgerEntry]) -> str:
 
 def render_markdown(entries: Sequence[RepoLedgerEntry]) -> str:
     rows = [
-        "| Repository | Status | Blockers | Next action | Release | CI | License |",
+        "Publication signals only: `ready` means a description, README, GitHub SPDX license "
+        "metadata, GitHub Actions workflow, and latest full GitHub release were observed; "
+        "`needs_work` means one or more were not observed. Archived repositories and forks "
+        "are `not_applicable`.",
+        "",
+        "GitHub Actions shows the latest observed run result/status independently of publication "
+        "signals; a failed run can coexist with `ready`. `configured` means a workflow was "
+        "observed without a run result/status; a blank Actions cell means no workflow was observed.",
+        "",
+        "Missing signals may be unobserved or unrecognized; verify before following suggested "
+        "actions. This report does not determine license rights or assess code quality, security, "
+        "test coverage, installability, release assets, support, maintenance, or adoption.",
+        "",
+        "| Repository | Publication signals | Signal gaps / exclusions | Suggested next action "
+        "| Latest full release | GitHub Actions | License SPDX |",
         "| --- | --- | --- | --- | --- | --- | --- |",
     ]
     for entry in entries:

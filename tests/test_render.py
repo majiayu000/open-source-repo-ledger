@@ -4,10 +4,12 @@ import io
 import json
 import unittest
 from contextlib import redirect_stdout
+from dataclasses import replace
 from unittest.mock import patch
 
 from oss_ledger import cli
 from oss_ledger.model import ReleaseInfo, RepoLedgerEntry, WorkflowRunInfo
+from oss_ledger.readiness import classify_repo_facts
 from oss_ledger.render import render_json, render_markdown
 
 
@@ -21,8 +23,48 @@ class RenderTests(unittest.TestCase):
     def test_render_markdown_includes_core_columns(self) -> None:
         output = render_markdown([sample_entry()])
 
-        self.assertIn("| Repository | Status | Blockers | Next action | Release | CI | License |", output)
+        self.assertIn(
+            "| Repository | Publication signals | Signal gaps / exclusions | Suggested next action "
+            "| Latest full release | GitHub Actions | License SPDX |",
+            output,
+        )
         self.assertIn("| majiayu000/open-source-repo-ledger | ready |  | Keep current. | v0.1.0 | success | MIT |", output)
+
+    def test_markdown_explains_scope_even_without_entries(self) -> None:
+        output = render_markdown([])
+
+        self.assertIn("Publication signals only:", output)
+        self.assertIn("Archived repositories and forks are `not_applicable`", output)
+        self.assertIn("Missing signals may be unobserved or unrecognized", output)
+        self.assertIn("does not determine license rights", output)
+
+    def test_ready_metadata_can_show_failed_or_unreported_actions(self) -> None:
+        entry = sample_entry()
+        readiness, blockers, next_action = classify_repo_facts(
+            archived=entry.archived,
+            fork=entry.fork,
+            description=entry.description,
+            readme_present=entry.readme_present,
+            license_spdx=entry.license_spdx,
+            ci_present=entry.ci_present,
+            latest_release=entry.latest_release,
+        )
+        self.assertEqual(readiness, "ready")
+        failed_run = WorkflowRunInfo(
+            name="check", status="completed", conclusion="failure", html_url=None, updated_at=None,
+        )
+        for run, displayed in [(failed_run, "failure"), (None, "configured")]:
+            with self.subTest(displayed=displayed):
+                output = render_markdown([replace(
+                    entry,
+                    recent_workflow_status=run,
+                    publish_readiness=readiness,
+                    blocking_reasons=blockers,
+                    next_action=next_action,
+                )])
+                self.assertIn("| ready |  |", output)
+                self.assertIn(f"| v0.1.0 | {displayed} | MIT |", output)
+                self.assertIn("a failed run can coexist with `ready`", output)
 
 
 class CliRenderTests(unittest.TestCase):
