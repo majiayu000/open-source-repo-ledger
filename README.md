@@ -44,13 +44,25 @@ default `https://api.github.com` API root.
 
 ## Readiness Rules
 
-Repositories are `ready` when they have a description, README, explicit license,
-CI workflow, and latest release. Repositories are `needs_work` when one or more
-of those signals are missing. Archived repositories and forks are
-`not_applicable` by default.
+For non-archived repositories that are not forks, `ready` means a description,
+README, GitHub SPDX license metadata, GitHub Actions workflow, and latest full
+GitHub release were observed. `needs_work` means one or more of those signals
+were not observed. Archived repositories and forks are `not_applicable` by default.
+
+The Markdown export includes this scope alongside its publication-signal columns.
+GitHub Actions shows the latest observed run result/status independently of the
+classification: a failed run can coexist with `ready`. `configured` means a
+workflow was observed without a run result/status; a blank Actions cell means no
+workflow was observed. These observations do not cover external CI systems or
+prove that a particular branch or release passed its required checks.
+
+Missing signals may be unobserved or unrecognized; verify before following the
+suggested next action. For example, unrecognized SPDX metadata does not establish
+that a license file is absent, and the latest full release excludes prereleases.
 
 This is intentionally a ledger, not a quality score. It does not judge code
-quality, security posture, test coverage, or project popularity.
+quality, security posture, test coverage, installability, release assets, support,
+maintenance, or adoption, and it does not determine license rights.
 
 ## Development
 
